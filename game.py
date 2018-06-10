@@ -1,5 +1,5 @@
 """
-To run the program on command line type: python3 game.py
+To run the program on command line type: python3 game.py <file_name>
 
 Cheating Scenarios:
 1. Stealing money from the bank (ie. paying for property/other players after going bankrupt)
@@ -10,8 +10,7 @@ Assumptions:
 
 1. If the action is purchase and the property is already owned, it will be purchased by the current player
 2. Rather than denying a purchase/paying rent by a bankrupt player, the possibility of player going bankrupt is avoided. (If a player has 75$ in
-    account and tries to purchase/pay rent upto 100$, then the transaction is not made complete, and regarded as cheating.)
-3. 
+account and tries to purchase/pay rent upto 100$, then the transaction is not made complete, and regarded as cheating.)
 
 """
 
@@ -20,6 +19,7 @@ import json
 import sys
 from pathlib import Path
 
+#class Player to store the player details
 class player:
     def __init__(self, name):
         self.name = name
@@ -38,7 +38,7 @@ class player:
         return self.name
 
 
-
+#class place to store the property details
 class place:
     def __init__(self, name, owner, cost):
         self.name = name
@@ -50,19 +50,12 @@ class place:
         return self.name
 
 
-
+##Function to find the next player in the execution sequence. Executes in a round-robin method flow
 def findNextPlayer(curr_player, playerlist):
-    #print(playerlist.index(curr_player)+1, " ", len(playerlist))
+    
     ind = playerlist.index(curr_player)+1
     ind = ind%len(playerlist)
-    """
-    if playerlist.index(curr_player)+1 == len(playerlist):
-        ep = playerlist[0]
-    else:
-        ep = playerlist[playerlist.index(curr_player)+1]
-    if players[ep].money <= 0:
-        ep = findNextPlayer(ep, playerlist)
-    """
+    
     ep = playerlist[ind]
     return ep
 
@@ -73,22 +66,28 @@ playerlist = []
 # Dictionary of place class objects
 places = {}
 
+#To calculate the current round
 round = 0
+#To identiify the cheater
 cheater = ""
+#To calculate the no of players who exhausted their accounts
 zeros = 0
 
-## Open File to Read as Input
+## If JSON file is not given as input
 if(len(sys.argv) == 1):
     print("Enter json file name")
     sys.exit()
 
 file_name = sys.argv[1]
 my_file = Path(file_name)
+
+#To check if the file is present or not
 if not my_file.is_file():
     print("Enter valid JSON file name")
     sys.exit()
 expected_player = ""
 
+##To initially fill the players list
 def fillPlayers():
     with open(file_name) as f:
         for line in f:
@@ -116,8 +115,6 @@ with open(file_name) as f:
                 players[input['player']].cheat = True
                 cheater = input['player'].decode("utf-8") + " - " + " Player played out of turn in round "+ str(round+1)
                 break
-        ## Set expected player to next player
-        ## Player Creation during Round 1
         
         players[input['player']].moves += int(input['roll'])
         ## Check if player has crossed 40 moves
@@ -133,6 +130,8 @@ with open(file_name) as f:
             ## Create Place
                 places[input['landed_on']] = place(input['landed_on'], input['player'], input['price'])
 
+
+            ##Checking if player will go bankrupt or not
             if players[input['player']].money - int(input['price']) < 0:
                 players[input['player']].cheat = True
                 cheater = input['player'].decode("utf-8")+" - "+"Stealing money from the bank in round "+str(round+1)
@@ -140,13 +139,17 @@ with open(file_name) as f:
             ## Player Actions
             players[input['player']].money -= int(input['price'])
             players[input['player']].pplace.append(input['landed_on']) 
+
+            #To check if the purchase was not the initial one for the property
             if(places[input['landed_on']].owner != input['player']):
 
+                #To check if the owner was exhausted. To keep track of bankrupt players
                 if(players[places[input['landed_on']].owner].money == 0):
                     zeros -= 1
                 players[places[input['landed_on']].owner].money += int(input['price'])
                 places[input['landed_on']].owner = input['player']
 
+            #Check if all except one has exhausted
             if players[input['player']].money == 0:
             	zeros +=1								
             	if(zeros == len(players)-1 and round >= len(players)):
@@ -155,37 +158,41 @@ with open(file_name) as f:
         ## Player pays rent
         if input['action'] == 'paid rent':
             ## Check if rent is correct
-
+            ##Checking if player will go bankrupt or not
             if players[input['player']].money - int(input['price']) < 0:
                 players[input['player']].cheat = True
                 cheater = input['player'].decode("utf-8")+" - "+"Stealing money from the bank in round "+str(round+1)
                 break
 
-            if input['price'] != places[input['landed_on']].rent:
+            #To check if the rent is lesser than 50% of price 
+            if input['price'] < places[input['landed_on']].rent:
                 players[input['player']].cheat = True
                 cheater = input['player'].decode("utf-8")+" - "+"Paid Incorrect Rent in round "+str(round+1)
                 break
-
+            #Player updates account
             players[input['player']].money -= int(input['price'])
+
+            #Check if owner was exhausted
             if(players[places[input['landed_on']].owner].money == 0):
             		zeros -= 1
 
+            #Rent Actions
             players[places[input['landed_on']].owner].money += int(input['price'])
-            players[places[input['landed_on']].owner].rentAcquired += int(input['price']) ##should be places[input landed on].pwner
+            players[places[input['landed_on']].owner].rentAcquired += int(input['price'])
 
+            #Check if all except one player have exhausted
             if players[input['player']].money == 0:
             	zeros +=1
             	if(zeros == len(players)-1 and round >= len(players)):
             		break
 
-        ## Checks for cheating
-        ## Stealing Money from the bank
-        ## Next Expected Player
+        #Check if first round is over
         if(round+1 >= len(playerlist)):
+            #Finding the expected player for the next iteration
             expected_player = findNextPlayer(curr_player, playerlist)
         round += 1
 
-## Finding the Winner
+## Finding the Winner and printing the summary
 max = 0
 winner = ""
 for key in players:
@@ -197,7 +204,7 @@ for key in players:
 		max = players[key].money
 
 print ("Winner is "+ winner.decode() + " with a final amount of " + str(max) + ".")
-## Printing the Cheaters
+## Printing the Cheater if there is one
 if(cheater != ""):
 	print ("There was a cheater in the game,")
 	print (cheater)
